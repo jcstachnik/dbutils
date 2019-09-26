@@ -55,9 +55,8 @@ def getargs():
     ''',
     epilog='''
     Example:
-    db3polar.py -d indb -o outdb -s "orid==1814"
+    dbarrival_params.py -d indb -o outdb -s "orid==1814"
 
-    TODO command line arrival subset
     TODO deal with accelerometers
     TODO multiproc the db loop
     ''',
@@ -69,13 +68,29 @@ def getargs():
     parser.add_argument("-o", "--odbname", required=True, 
                             type=str,
                             help=helpmsg)
-    helpmsg = "Origin table subset."
+    helpmsg = "Event-Origin table subset."
     parser.add_argument("-s", "--osub", required=False, 
                             type=str,
                             help=helpmsg)
     helpmsg = "Arrival-assoc join table subset."
     parser.add_argument("-a", "--asub", required=False, 
                             type=str,
+                            help=helpmsg)
+    helpmsg = "Time before arrival to extract data for processing (seconds)."
+    parser.add_argument("--pretime", required=False, 
+                            type=float, default=5.,
+                            help=helpmsg)
+    helpmsg = "Time after arrival to extract data for processing (seconds)."
+    parser.add_argument("--posttime", required=False, 
+                            type=float, default=5.,
+                            help=helpmsg)
+    helpmsg = "Lead Time before arrival to measure noise RMS for SNR (seconds)."
+    parser.add_argument("--tlead", required=False, 
+                            type=float, default=5.,
+                            help=helpmsg)
+    helpmsg = "Lag Time after arrival to measure signal RMS for SNR (seconds)."
+    parser.add_argument("--tlag", required=False, 
+                            type=float, default=2.,
                             help=helpmsg)
     helpmsg = "Number of processes to run at a time."
     parser.add_argument("-n", "--nproc", required=False, 
@@ -135,7 +150,7 @@ def get_chan3(dbsite_chan, sta, chan, time):
     Return the appropriate 3 channel tuple for 3 component
     stations.
     """
-    logger = logging.getLogger('db3polar')
+    logger = logging.getLogger('dbarrival_params')
     scsub = "sta =~ /{}/ && chan =~ /{}.{}/ "\
                     "&& ondate < _{}_ && (offdate > _{}_ || "\
                     "offdate == -1)".format(sta,
@@ -173,7 +188,7 @@ def get3Ctr(wf_db, sta, chan3, tstart, tend):
     Input: db wfdisc pointer, station name, 3 channels, start,end
     Output: Obspy Stream with 3 waveform traces (segments)
     """
-    logger = logging.getLogger('db3polar')
+    logger = logging.getLogger('dbarrival_params')
     st3c = Stream()
     if chan3 == None:
         return None
@@ -369,7 +384,7 @@ def plot_polar(st,polout):
 
 def write_arrival_assoc_pool(dbout_arrival, dbout_assoc, 
                             evlist):
-    logger = logging.getLogger('db3polar')
+    logger = logging.getLogger('dbarrival_params')
     dboarr = dbout_arrival
     dboass = dbout_assoc
     for i in range(len(evlist)):
@@ -411,7 +426,7 @@ def db2param(dbeos, record_number):
 if __name__ == "__main__":
     args,parser = getargs()
 
-    logger = setup_logger(name='db3polar', loglevel=args.logLevel,
+    logger = setup_logger(name='dbarrival_params', loglevel=args.logLevel,
                             logfile=args.logfile)
     dryrun = args.dryrun
     nproc = args.nproc
@@ -453,8 +468,10 @@ if __name__ == "__main__":
     if args.asub:
         asub = args.asub
         logger.info('Arrival-assoc subset {}'.format(asub))
-    pretime = 5
-    posttime = 5
+    pretime = args.pretime
+    posttime = args.posttime
+    snrtlead = args.tlead
+    snrtlag = args.tlag
     arrlist=[]
     assoclist=[]
     evlist=[]
@@ -548,7 +565,7 @@ if __name__ == "__main__":
             # - SNR
             snr = -1.00
             if dosnr:
-                snr = calc_snr(ztr, UTCDateTime(atime), tlead=5., tlag=2.)
+                snr = calc_snr(ztr, UTCDateTime(atime), tlead=snrtlead, tlag=snrtlag)
                 logger.debug('SNR: {0}'.format(snr))
                 #ztr.plot()
             # ----
